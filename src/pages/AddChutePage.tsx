@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { PlusCircle } from 'lucide-react';
 import type { SteelType } from '@/types';
+import ExcelImport from '@/components/ExcelImport';
+import { addNotification } from '@/lib/notifications';
 
 export default function AddChutePage() {
   const { user } = useAuth();
