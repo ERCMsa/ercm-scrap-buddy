@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { getChutes, saveChutes, getNextTransferNumber, getRequests, saveRequests } from '@/lib/store';
+import { addNotification } from '@/lib/notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { Chute, STEEL_TYPES, ZONES, TransferRequest } from '@/types';
 import { Input } from '@/components/ui/input';
