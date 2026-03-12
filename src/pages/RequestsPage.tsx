@@ -63,6 +63,12 @@ export default function RequestsPage() {
       if (c) c.status = 'Used';
     });
     saveChutes(allChutes);
+    addNotification({
+      type: 'request_delivered',
+      title: 'Request Delivered',
+      message: `${req.transferNumber} delivered to ${req.unit === 'unit1' ? 'Unit 1' : 'Unit 2'}`,
+      forRoles: ['store_manager', 'production_manager', 'unit1_manager', 'unit2_manager', 'engineer', 'worker'],
+    });
     toast.success(`Request ${req.transferNumber} delivered`);
   };
 
