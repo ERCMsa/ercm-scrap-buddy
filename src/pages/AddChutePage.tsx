@@ -43,6 +43,12 @@ export default function AddChutePage() {
     };
     chutes.push(newChute);
     saveChutes(chutes);
+    addNotification({
+      type: 'chute_added',
+      title: 'New Chute Added',
+      message: `${steelType} ${sectionSize} - ${length}mm added by ${user?.fullName}`,
+      forRoles: ['store_manager', 'production_manager', 'unit1_manager', 'unit2_manager'],
+    });
     toast.success(`Chute ${id} added successfully`);
     navigate('/inventory');
   };
