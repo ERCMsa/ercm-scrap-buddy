@@ -8,6 +8,7 @@ import {
   LogOut, Menu, X, Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import NotificationBell from '@/components/NotificationBell';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
