@@ -55,7 +55,10 @@ export default function AddChutePage() {
 
   return (
     <div className="animate-fade-in max-w-2xl">
-      <h2 className="text-2xl font-bold text-foreground mb-6">Add New Chute</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <h2 className="text-2xl font-bold text-foreground">Add New Chute</h2>
+        <ExcelImport />
+      </div>
       <form onSubmit={handleSubmit} className="bg-card rounded-lg border p-6 space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
