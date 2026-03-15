@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { getChutes, getNextTransferNumber, getRequests, saveRequests } from '@/lib/store';
+import { getChutes, getNextTransferNumber, getRequests, saveRequests, saveChutes } from '@/lib/store';
 import { addNotification } from '@/lib/notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { Chute, STEEL_TYPES, TransferRequest } from '@/types';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Search, ShoppingCart, MapPin } from 'lucide-react';
+import { Search, ShoppingCart, MapPin, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,16 +20,15 @@ const STATUS_COLORS: Record<string, string> = {
 export default function InventoryPage() {
   const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
-  const [chutes] = useState(getChutes);
+  const [chutes, setChutes] = useState(getChutes);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Only show Available and Reserved chutes (Used = delivered = goes to archive)
   const filtered = useMemo(() => {
     return chutes.filter(c => {
-      if (c.status === 'Used') return false; // Hide used/delivered from inventory
+      if (c.status === 'Used') return false;
       if (filterType !== 'all' && c.steelType !== filterType) return false;
       if (filterStatus !== 'all' && c.status !== filterStatus) return false;
       if (search) {
@@ -52,20 +51,38 @@ export default function InventoryPage() {
     });
   };
 
+  const toggleAll = () => {
+    const availableIds = filtered.filter(c => c.status === 'Available').map(c => c.id);
+    if (availableIds.every(id => selected.has(id))) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(availableIds));
+    }
+  };
+
   const handleCreateRequest = () => {
     if (!user) return;
-    const unit = user.unit || 'unit1';
     const selectedChutes = chutes.filter(c => selected.has(c.id) && c.status === 'Available');
     if (selectedChutes.length === 0) {
       toast.error('Select at least one available chute');
       return;
     }
+
+    // Mark selected chutes as Reserved
+    const updatedChutes = chutes.map(c =>
+      selected.has(c.id) && c.status === 'Available'
+        ? { ...c, status: 'Reserved' as const }
+        : c
+    );
+    saveChutes(updatedChutes);
+    setChutes(updatedChutes);
+
     const req: TransferRequest = {
       id: crypto.randomUUID(),
       transferNumber: getNextTransferNumber(),
       requesterId: user.id,
       requesterName: user.fullName,
-      unit,
+      unit: user.unit || 'unit1',
       chuteIds: selectedChutes.map(c => c.id),
       status: 'Pending',
       dateCreated: new Date().toISOString().split('T')[0],
@@ -73,32 +90,31 @@ export default function InventoryPage() {
     const requests = getRequests();
     requests.push(req);
     saveRequests(requests);
+
     addNotification({
       type: 'request_created',
       title: 'New Transfer Request',
       message: `${req.transferNumber} by ${user.fullName} (${selectedChutes.length} pieces)`,
       forRoles: ['store_manager', 'production_manager', 'unit1_manager', 'unit2_manager'],
     });
-    toast.success(`Transfer request ${req.transferNumber} created`);
+
+    toast.success(`Transfer request ${req.transferNumber} created (${selectedChutes.length} pieces)`);
     setSelected(new Set());
     navigate('/requests');
   };
 
-  const canRequest = hasPermission('create_request');
   const selectedAvailable = [...selected].filter(id => chutes.find(c => c.id === id)?.status === 'Available');
 
   return (
     <div className="animate-fade-in space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold text-foreground">Chute Inventory</h2>
-        <div className="flex gap-2">
-          {canRequest && selected.size > 0 && (
-            <Button onClick={handleCreateRequest} className="btn-industrial red-gradient gap-2">
-              <ShoppingCart className="h-5 w-5" />
-              Request Selected ({selectedAvailable.length})
-            </Button>
-          )}
-        </div>
+        {selected.size > 0 && (
+          <Button onClick={handleCreateRequest} size="lg" className="btn-industrial red-gradient gap-2 text-base">
+            <Send className="h-5 w-5" />
+            Request Selected ({selectedAvailable.length} pieces)
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -124,14 +140,24 @@ export default function InventoryPage() {
         </Select>
       </div>
 
-      <p className="text-sm text-muted-foreground">{filtered.length} pieces in stock</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{filtered.length} pieces in stock</p>
+        <p className="text-sm text-muted-foreground">
+          ✅ Select chutes then click <strong>"Request Selected"</strong> to create a transfer request
+        </p>
+      </div>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm table-industrial">
           <thead>
             <tr>
-              {canRequest && <th className="p-3 w-10"></th>}
+              <th className="p-3 w-10">
+                <Checkbox
+                  checked={filtered.filter(c => c.status === 'Available').length > 0 && filtered.filter(c => c.status === 'Available').every(c => selected.has(c.id))}
+                  onCheckedChange={toggleAll}
+                />
+              </th>
               <th className="p-3 text-left">ID</th>
               <th className="p-3 text-left">Type</th>
               <th className="p-3 text-left">Section</th>
@@ -143,14 +169,18 @@ export default function InventoryPage() {
           </thead>
           <tbody>
             {filtered.map(c => (
-              <tr key={c.id} className="border-t hover:bg-accent/50 transition-colors">
-                {canRequest && (
-                  <td className="p-3">
-                    {c.status === 'Available' && (
-                      <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
-                    )}
-                  </td>
-                )}
+              <tr
+                key={c.id}
+                className={`border-t hover:bg-accent/50 transition-colors cursor-pointer ${selected.has(c.id) ? 'bg-primary/10' : ''}`}
+                onClick={() => c.status === 'Available' && toggleSelect(c.id)}
+              >
+                <td className="p-3" onClick={e => e.stopPropagation()}>
+                  {c.status === 'Available' ? (
+                    <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </td>
                 <td className="p-3 font-mono font-medium text-foreground">{c.id}</td>
                 <td className="p-3 font-semibold text-foreground">{c.steelType}</td>
                 <td className="p-3 text-foreground">{c.steelType} {c.sectionSize}</td>
