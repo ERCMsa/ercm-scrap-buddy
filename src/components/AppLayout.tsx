@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ercmLogo from '@/assets/ercm-logo.png';
-import { ROLE_LABELS } from '@/types';
+import { ROLE_LABELS, AppRole } from '@/types';
 import {
   LayoutDashboard, Package, PlusCircle, FileText, BarChart3,
   LogOut, Menu, X, Settings, Archive
@@ -11,21 +11,21 @@ import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/NotificationBell';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
-  { path: '/inventory', label: 'Inventory', icon: Package, permission: 'inventory' },
-  { path: '/add-chute', label: 'Add Chute', icon: PlusCircle, permission: 'add_chute' },
-  { path: '/requests', label: 'Requests', icon: FileText, permission: 'requests' },
-  { path: '/archive', label: 'Archive', icon: Archive, permission: 'inventory' },
-  { path: '/statistics', label: 'Statistics', icon: BarChart3, permission: 'statistics' },
-  { path: '/settings', label: 'Settings', icon: Settings, permission: 'inventory' },
+  { path: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
+  { path: '/inventory', label: 'Inventory', icon: Package, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
+  { path: '/add-stock', label: 'Add Stock', icon: PlusCircle, roles: ['stock_manager', 'magazinier'] as AppRole[] },
+  { path: '/requests', label: 'Lists', icon: FileText, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
+  { path: '/archive', label: 'Archive', icon: Archive, roles: ['stock_manager'] as AppRole[] },
+  { path: '/statistics', label: 'Statistics', icon: BarChart3, roles: ['stock_manager'] as AppRole[] },
+  { path: '/settings', label: 'Settings', icon: Settings, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
 ];
 
 export default function AppLayout() {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const filteredNav = NAV_ITEMS.filter(item => hasPermission(item.permission));
+  const filteredNav = NAV_ITEMS.filter(item => profile && item.roles.includes(profile.role));
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -41,10 +41,10 @@ export default function AppLayout() {
         <div className="ml-auto flex items-center gap-3">
           <NotificationBell />
           <div className="text-right hidden sm:block">
-            <p className="text-secondary-foreground text-sm font-medium">{user?.fullName}</p>
-            <p className="text-industrial-steel text-xs">{user ? ROLE_LABELS[user.role] : ''}</p>
+            <p className="text-secondary-foreground text-sm font-medium">{profile?.display_name || user?.email}</p>
+            <p className="text-industrial-steel text-xs">{profile ? ROLE_LABELS[profile.role] : ''}</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={logout} className="text-industrial-steel hover:text-secondary-foreground hover:bg-sidebar-accent">
+          <Button variant="ghost" size="icon" onClick={signOut} className="text-industrial-steel hover:text-secondary-foreground hover:bg-sidebar-accent">
             <LogOut className="h-5 w-5" />
           </Button>
         </div>

@@ -1,8 +1,6 @@
-import { TransferRequest } from '@/types';
-
 export interface Notification {
   id: string;
-  type: 'request_created' | 'request_approved' | 'request_delivered' | 'request_cancelled' | 'chute_added' | 'excel_import';
+  type: 'demand_submitted' | 'supply_submitted' | 'demand_approved' | 'demand_rejected' | 'supply_approved' | 'supply_rejected';
   title: string;
   message: string;
   timestamp: string;
@@ -29,7 +27,6 @@ export function addNotification(notification: Omit<Notification, 'id' | 'timesta
     timestamp: new Date().toISOString(),
     read: false,
   });
-  // Keep last 50
   if (notifications.length > 50) notifications.length = 50;
   saveNotifications(notifications);
 }

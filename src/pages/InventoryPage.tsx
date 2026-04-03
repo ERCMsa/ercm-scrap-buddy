@@ -1,127 +1,104 @@
 import { useState, useMemo } from 'react';
-import { getChutes, getNextTransferNumber, getRequests, saveRequests, saveChutes } from '@/lib/store';
-import { addNotification } from '@/lib/notifications';
+import { useStock } from '@/hooks/useStock';
+import { useCreateDemandList } from '@/hooks/useDemandLists';
 import { useAuth } from '@/contexts/AuthContext';
-import { Chute, STEEL_TYPES, TransferRequest } from '@/types';
+import { STEEL_TYPES, StockItem } from '@/types';
+import { addNotification } from '@/lib/notifications';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Search, ShoppingCart, MapPin, Send } from 'lucide-react';
+import { Search, Send, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
-
-const STATUS_COLORS: Record<string, string> = {
-  Available: 'bg-success text-success-foreground',
-  Reserved: 'bg-warning text-warning-foreground',
-};
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function InventoryPage() {
-  const { user, hasPermission } = useAuth();
-  const navigate = useNavigate();
-  const [chutes, setChutes] = useState(getChutes);
+  const { profile, hasRole } = useAuth();
+  const { data: stock = [], isLoading } = useStock();
+  const createDemand = useCreateDemandList();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [demandItems, setDemandItems] = useState<Record<string, number>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    return chutes.filter(c => {
-      if (c.status === 'Used') return false;
-      if (filterType !== 'all' && c.steelType !== filterType) return false;
-      if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+    return stock.filter(s => {
+      if (filterType !== 'all' && s.item_type !== filterType) return false;
       if (search) {
-        const s = search.toLowerCase();
-        return c.id.toLowerCase().includes(s) ||
-          c.steelType.toLowerCase().includes(s) ||
-          c.sectionSize.toLowerCase().includes(s) ||
-          c.locationCode.toLowerCase().includes(s) ||
-          c.length.toString().includes(s);
+        const q = search.toLowerCase();
+        return s.item_type.toLowerCase().includes(q) ||
+          s.item_name.toLowerCase().includes(q) ||
+          (s.length?.toString() || '').includes(q);
       }
       return true;
     });
-  }, [chutes, search, filterType, filterStatus]);
+  }, [stock, search, filterType]);
 
-  const toggleSelect = (id: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const toggleAll = () => {
-    const availableIds = filtered.filter(c => c.status === 'Available').map(c => c.id);
-    if (availableIds.every(id => selected.has(id))) {
-      setSelected(new Set());
+  const updateDemandQty = (stockId: string, qty: number, maxQty: number) => {
+    const newErrors = { ...errors };
+    if (qty > maxQty) {
+      newErrors[stockId] = `Max available: ${maxQty}`;
     } else {
-      setSelected(new Set(availableIds));
+      delete newErrors[stockId];
+    }
+    setErrors(newErrors);
+
+    if (qty <= 0) {
+      const next = { ...demandItems };
+      delete next[stockId];
+      setDemandItems(next);
+    } else {
+      setDemandItems({ ...demandItems, [stockId]: qty });
     }
   };
 
-  const handleCreateRequest = () => {
-    if (!user) return;
-    const selectedChutes = chutes.filter(c => selected.has(c.id) && c.status === 'Available');
-    if (selectedChutes.length === 0) {
-      toast.error('Select at least one available chute');
-      return;
+  const selectedItems = Object.entries(demandItems).filter(([_, qty]) => qty > 0);
+  const hasErrors = Object.keys(errors).length > 0;
+
+  const handleSubmitDemand = async () => {
+    if (hasErrors) { toast.error('Fix quantity errors before submitting'); return; }
+    try {
+      await createDemand.mutateAsync({
+        items: selectedItems.map(([stock_id, requested_quantity]) => ({ stock_id, requested_quantity })),
+      });
+      addNotification({
+        type: 'demand_submitted',
+        title: 'New Demand List',
+        message: `${profile?.display_name} submitted a demand list (${selectedItems.length} items)`,
+        forRoles: ['stock_manager'],
+      });
+      toast.success('Demand list submitted');
+      setDemandItems({});
+      setConfirmOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit');
     }
-
-    // Mark selected chutes as Reserved
-    const updatedChutes = chutes.map(c =>
-      selected.has(c.id) && c.status === 'Available'
-        ? { ...c, status: 'Reserved' as const }
-        : c
-    );
-    saveChutes(updatedChutes);
-    setChutes(updatedChutes);
-
-    const req: TransferRequest = {
-      id: crypto.randomUUID(),
-      transferNumber: getNextTransferNumber(),
-      requesterId: user.id,
-      requesterName: user.fullName,
-      unit: user.unit || 'unit1',
-      chuteIds: selectedChutes.map(c => c.id),
-      status: 'Pending',
-      dateCreated: new Date().toISOString().split('T')[0],
-    };
-    const requests = getRequests();
-    requests.push(req);
-    saveRequests(requests);
-
-    addNotification({
-      type: 'request_created',
-      title: 'New Transfer Request',
-      message: `${req.transferNumber} by ${user.fullName} (${selectedChutes.length} pieces)`,
-      forRoles: ['store_manager', 'production_manager', 'unit1_manager', 'unit2_manager'],
-    });
-
-    toast.success(`Transfer request ${req.transferNumber} created (${selectedChutes.length} pieces)`);
-    setSelected(new Set());
-    navigate('/requests');
   };
 
-  const selectedAvailable = [...selected].filter(id => chutes.find(c => c.id === id)?.status === 'Available');
+  const isEngineer = hasRole('engineer');
+
+  if (isLoading) return <div className="animate-fade-in p-8 text-center text-muted-foreground">Loading inventory...</div>;
 
   return (
     <div className="animate-fade-in space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold text-foreground">Chute Inventory</h2>
-        {selected.size > 0 && (
-          <Button onClick={handleCreateRequest} size="lg" className="btn-industrial red-gradient gap-2 text-base">
+        <h2 className="text-2xl font-bold text-foreground">Stock Inventory</h2>
+        {isEngineer && selectedItems.length > 0 && (
+          <Button onClick={() => setConfirmOpen(true)} size="lg" className="btn-industrial red-gradient gap-2 text-base" disabled={hasErrors}>
             <Send className="h-5 w-5" />
-            Request Selected ({selectedAvailable.length} pieces)
+            Submit Demand ({selectedItems.length} items)
           </Button>
         )}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center bg-card p-4 rounded-lg border">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search ID, type, section..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-11" />
+          <Input placeholder="Search type, section, length..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-11" />
         </div>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-[140px] h-11"><SelectValue placeholder="Steel Type" /></SelectTrigger>
@@ -130,79 +107,79 @@ export default function InventoryPage() {
             {STEEL_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[140px] h-11"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="Available">Available</SelectItem>
-            <SelectItem value="Reserved">Reserved</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{filtered.length} pieces in stock</p>
-        <p className="text-sm text-muted-foreground">
-          ✅ Select chutes then click <strong>"Request Selected"</strong> to create a transfer request
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">{filtered.length} stock items</p>
 
-      {/* Table */}
       <div className="overflow-x-auto rounded-lg border bg-card">
         <table className="w-full text-sm table-industrial">
           <thead>
             <tr>
-              <th className="p-3 w-10">
-                <Checkbox
-                  checked={filtered.filter(c => c.status === 'Available').length > 0 && filtered.filter(c => c.status === 'Available').every(c => selected.has(c.id))}
-                  onCheckedChange={toggleAll}
-                />
-              </th>
-              <th className="p-3 text-left">ID</th>
               <th className="p-3 text-left">Type</th>
               <th className="p-3 text-left">Section</th>
               <th className="p-3 text-right">Length (mm)</th>
-              <th className="p-3 text-left">Location</th>
-              <th className="p-3 text-left">Status</th>
-              <th className="p-3 text-left">Date Added</th>
+              <th className="p-3 text-center">Quantity</th>
+              <th className="p-3 text-center">Min Qty</th>
+              {isEngineer && <th className="p-3 text-center">Request Qty</th>}
             </tr>
           </thead>
           <tbody>
-            {filtered.map(c => (
-              <tr
-                key={c.id}
-                className={`border-t hover:bg-accent/50 transition-colors cursor-pointer ${selected.has(c.id) ? 'bg-primary/10' : ''}`}
-                onClick={() => c.status === 'Available' && toggleSelect(c.id)}
-              >
-                <td className="p-3" onClick={e => e.stopPropagation()}>
-                  {c.status === 'Available' ? (
-                    <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
-                  ) : (
-                    <span className="text-muted-foreground text-xs">—</span>
+            {filtered.map(s => {
+              const isLow = s.quantity <= s.min_quantity && s.min_quantity > 0;
+              return (
+                <tr key={s.id} className={`border-t hover:bg-accent/50 transition-colors ${isLow ? 'bg-warning/10' : ''}`}>
+                  <td className="p-3 font-semibold text-foreground">{s.item_type}</td>
+                  <td className="p-3 text-foreground">{s.item_type} {s.item_name}</td>
+                  <td className="p-3 text-right font-mono text-foreground">{s.length ?? '—'}</td>
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="font-bold text-foreground">{s.quantity}</span>
+                      {isLow && <AlertTriangle className="h-4 w-4 text-warning" />}
+                    </div>
+                  </td>
+                  <td className="p-3 text-center text-muted-foreground">{s.min_quantity}</td>
+                  {isEngineer && (
+                    <td className="p-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={s.quantity}
+                          value={demandItems[s.id] || ''}
+                          onChange={e => updateDemandQty(s.id, parseInt(e.target.value) || 0, s.quantity)}
+                          className="w-20 h-9 text-center"
+                          placeholder="0"
+                        />
+                        {errors[s.id] && (
+                          <span className="text-destructive text-xs font-medium">{errors[s.id]}</span>
+                        )}
+                      </div>
+                    </td>
                   )}
-                </td>
-                <td className="p-3 font-mono font-medium text-foreground">{c.id}</td>
-                <td className="p-3 font-semibold text-foreground">{c.steelType}</td>
-                <td className="p-3 text-foreground">{c.steelType} {c.sectionSize}</td>
-                <td className="p-3 text-right font-mono text-foreground">{c.length}</td>
-                <td className="p-3">
-                  <span className="inline-flex items-center gap-1 text-foreground">
-                    <MapPin className="h-3 w-3 text-primary" />
-                    {c.locationCode}
-                  </span>
-                </td>
-                <td className="p-3">
-                  <Badge className={STATUS_COLORS[c.status]}>{c.status}</Badge>
-                </td>
-                <td className="p-3 text-muted-foreground">{c.dateAdded}</td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">No chutes found</td></tr>
+              <tr><td colSpan={isEngineer ? 6 : 5} className="p-8 text-center text-muted-foreground">No stock items found</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit Demand List?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to request {selectedItems.length} items. This will be sent to the Stock Manager for approval.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSubmitDemand} className="red-gradient">Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

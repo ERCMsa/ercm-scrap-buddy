@@ -7,7 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import InventoryPage from "@/pages/InventoryPage";
-import AddChutePage from "@/pages/AddChutePage";
+import AddStockPage from "@/pages/AddChutePage";
 import RequestsPage from "@/pages/RequestsPage";
 import StatisticsPage from "@/pages/StatisticsPage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -17,22 +17,29 @@ import NotFound from "@/pages/NotFound";
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { user, hasPermission } = useAuth();
-  if (!user) return <LoginPage />;
+  const { user, loading } = useAuth();
 
-  const defaultPath = hasPermission('dashboard') ? '/' : '/inventory';
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center industrial-gradient">
+        <p className="text-secondary-foreground text-lg">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) return <LoginPage />;
 
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        {hasPermission('dashboard') && <Route path="/" element={<DashboardPage />} />}
-        {hasPermission('inventory') && <Route path="/inventory" element={<InventoryPage />} />}
-        {hasPermission('add_chute') && <Route path="/add-chute" element={<AddChutePage />} />}
-        {hasPermission('requests') && <Route path="/requests" element={<RequestsPage />} />}
-        {hasPermission('inventory') && <Route path="/archive" element={<ArchivePage />} />}
-        {hasPermission('statistics') && <Route path="/statistics" element={<StatisticsPage />} />}
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/add-stock" element={<AddStockPage />} />
+        <Route path="/requests" element={<RequestsPage />} />
+        <Route path="/archive" element={<ArchivePage />} />
+        <Route path="/statistics" element={<StatisticsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to={defaultPath} replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );

@@ -1,42 +1,34 @@
-import { useMemo } from 'react';
-import { getChutes, getRequests } from '@/lib/store';
+import { useStock } from '@/hooks/useStock';
+import { useDemandLists } from '@/hooks/useDemandLists';
+import { useSupplyLists } from '@/hooks/useSupplyLists';
 import { useAuth } from '@/contexts/AuthContext';
-import { Package, CheckCircle, Clock, FileText, TrendingUp, Layers } from 'lucide-react';
+import { Package, AlertTriangle, FileText, TrendingUp, Layers } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const chutes = getChutes();
-  const requests = getRequests();
+  const { profile } = useAuth();
+  const { data: stock = [] } = useStock();
+  const { data: demandLists = [] } = useDemandLists();
+  const { data: supplyLists = [] } = useSupplyLists();
 
-  const stats = useMemo(() => {
-    const available = chutes.filter(c => c.status === 'Available').length;
-    const reserved = chutes.filter(c => c.status === 'Reserved').length;
-    const used = chutes.filter(c => c.status === 'Used').length;
-    const pending = requests.filter(r => r.status === 'Pending').length;
-    const inStock = available + reserved;
-
-    const steelCount: Record<string, number> = {};
-    chutes.filter(c => c.status === 'Used').forEach(c => {
-      steelCount[c.steelType] = (steelCount[c.steelType] || 0) + 1;
-    });
-    const topSteel = Object.entries(steelCount).sort((a, b) => b[1] - a[1]);
-
-    return { total: chutes.length, available, reserved, used, pending, inStock, topSteel };
-  }, [chutes, requests]);
+  const totalItems = stock.reduce((sum, s) => sum + s.quantity, 0);
+  const lowStock = stock.filter(s => s.min_quantity > 0 && s.quantity <= s.min_quantity);
+  const pendingDemands = demandLists.filter(d => d.status === 'pending').length;
+  const pendingSupplies = supplyLists.filter(s => s.status === 'pending').length;
+  const approvedDemands = demandLists.filter(d => d.status === 'approved').length;
 
   const cards = [
-    { label: 'In Stock', value: stats.inStock, icon: Package, color: 'bg-secondary' },
-    { label: 'Available', value: stats.available, icon: CheckCircle, color: 'bg-success' },
-    { label: 'Reserved', value: stats.reserved, icon: Clock, color: 'bg-warning' },
-    { label: 'Delivered', value: stats.used, icon: TrendingUp, color: 'bg-muted-foreground' },
-    { label: 'Pending Requests', value: stats.pending, icon: FileText, color: 'bg-primary' },
+    { label: 'Total Pieces', value: totalItems, icon: Package, color: 'bg-secondary' },
+    { label: 'Stock Types', value: stock.length, icon: Layers, color: 'bg-info' },
+    { label: 'Low Stock Alerts', value: lowStock.length, icon: AlertTriangle, color: 'bg-warning' },
+    { label: 'Pending Demands', value: pendingDemands, icon: FileText, color: 'bg-primary' },
+    { label: 'Approved Demands', value: approvedDemands, icon: TrendingUp, color: 'bg-success' },
   ];
 
   return (
     <div className="animate-fade-in space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-        <p className="text-muted-foreground">Welcome back, {user?.fullName}</p>
+        <p className="text-muted-foreground">Welcome back, {profile?.display_name}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -53,39 +45,52 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      {lowStock.length > 0 && (
         <div className="stat-card">
           <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">Most Reused Steel</h3>
+            <AlertTriangle className="h-5 w-5 text-warning" />
+            <h3 className="font-semibold text-foreground">Low Stock Items</h3>
           </div>
-          {stats.topSteel.length > 0 ? (
-            <ul className="space-y-2">
-              {stats.topSteel.map(([type, count]) => (
-                <li key={type} className="flex justify-between text-sm">
-                  <span className="text-foreground font-medium">{type}</span>
-                  <span className="text-muted-foreground">{count} pieces</span>
-                </li>
+          <ul className="space-y-2">
+            {lowStock.map(s => (
+              <li key={s.id} className="flex justify-between text-sm py-1 border-b last:border-0">
+                <span className="text-foreground font-medium">{s.item_type} {s.item_name}{s.length ? ` - ${s.length}mm` : ''}</span>
+                <span className="text-warning font-bold">{s.quantity} / {s.min_quantity} min</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="stat-card">
+          <h3 className="font-semibold text-foreground mb-3">Stock by Type</h3>
+          {stock.length > 0 ? (
+            <div className="space-y-2">
+              {Object.entries(
+                stock.reduce<Record<string, number>>((acc, s) => {
+                  acc[s.item_type] = (acc[s.item_type] || 0) + s.quantity;
+                  return acc;
+                }, {})
+              ).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+                <div key={type} className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-foreground w-20">{type}</span>
+                  <div className="flex-1 bg-muted rounded-full h-6 overflow-hidden">
+                    <div className="red-gradient h-full rounded-full flex items-center pl-3" style={{ width: `${Math.max((count / totalItems) * 100, 15)}%` }}>
+                      <span className="text-xs font-bold text-primary-foreground">{count}</span>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No reused pieces yet</p>
-          )}
+            </div>
+          ) : <p className="text-sm text-muted-foreground">No stock data</p>}
         </div>
 
         <div className="stat-card">
-          <div className="flex items-center gap-2 mb-3">
-            <Layers className="h-5 w-5 text-info" />
-            <h3 className="font-semibold text-foreground">Inventory Capacity</h3>
-          </div>
-          <p className="text-3xl font-bold text-foreground">{stats.inStock}/200</p>
-          <div className="w-full bg-muted rounded-full h-3 mt-3">
-            <div
-              className="red-gradient h-3 rounded-full transition-all"
-              style={{ width: `${Math.min((stats.inStock / 200) * 100, 100)}%` }}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">{Math.round((stats.inStock / 200) * 100)}% used</p>
+          <h3 className="font-semibold text-foreground mb-3">Recent Activity</h3>
+          <p className="text-sm text-muted-foreground">
+            {pendingDemands} pending demand{pendingDemands !== 1 ? 's' : ''}, {pendingSupplies} pending suppl{pendingSupplies !== 1 ? 'ies' : 'y'}
+          </p>
         </div>
       </div>
     </div>

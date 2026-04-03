@@ -8,24 +8,24 @@ import { getNotificationsForRole, getUnreadCount, markAsRead, markAllAsRead, Not
 import { formatDistanceToNow } from 'date-fns';
 
 const TYPE_ICONS: Record<string, string> = {
-  request_created: '📋',
-  request_approved: '✅',
-  request_delivered: '🚚',
-  request_cancelled: '❌',
-  chute_added: '➕',
-  excel_import: '📊',
+  demand_submitted: '📋',
+  supply_submitted: '📦',
+  demand_approved: '✅',
+  demand_rejected: '❌',
+  supply_approved: '✅',
+  supply_rejected: '❌',
 };
 
 export default function NotificationBell() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
 
   const refresh = useCallback(() => {
-    if (!user) return;
-    setNotifications(getNotificationsForRole(user.role));
-    setUnread(getUnreadCount(user.role));
-  }, [user]);
+    if (!profile) return;
+    setNotifications(getNotificationsForRole(profile.role));
+    setUnread(getUnreadCount(profile.role));
+  }, [profile]);
 
   useEffect(() => {
     refresh();
@@ -33,15 +33,8 @@ export default function NotificationBell() {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  const handleMarkAllRead = () => {
-    markAllAsRead();
-    refresh();
-  };
-
-  const handleClick = (id: string) => {
-    markAsRead(id);
-    refresh();
-  };
+  const handleMarkAllRead = () => { markAllAsRead(); refresh(); };
+  const handleClick = (id: string) => { markAsRead(id); refresh(); };
 
   return (
     <Popover>
@@ -59,9 +52,7 @@ export default function NotificationBell() {
         <div className="flex items-center justify-between p-3 border-b">
           <h3 className="font-semibold text-sm text-foreground">Notifications</h3>
           {unread > 0 && (
-            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={handleMarkAllRead}>
-              Mark all read
-            </Button>
+            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={handleMarkAllRead}>Mark all read</Button>
           )}
         </div>
         <ScrollArea className="max-h-[320px]">
@@ -69,19 +60,13 @@ export default function NotificationBell() {
             <p className="p-6 text-center text-sm text-muted-foreground">No notifications</p>
           ) : (
             notifications.slice(0, 20).map(n => (
-              <div
-                key={n.id}
-                onClick={() => handleClick(n.id)}
-                className={`p-3 border-b cursor-pointer transition-colors hover:bg-accent/50 ${!n.read ? 'bg-accent/20' : ''}`}
-              >
+              <div key={n.id} onClick={() => handleClick(n.id)} className={`p-3 border-b cursor-pointer transition-colors hover:bg-accent/50 ${!n.read ? 'bg-accent/20' : ''}`}>
                 <div className="flex items-start gap-2">
                   <span className="text-lg">{TYPE_ICONS[n.type] || '🔔'}</span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm ${!n.read ? 'font-semibold' : ''} text-foreground`}>{n.title}</p>
                     <p className="text-xs text-muted-foreground truncate">{n.message}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}
-                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}</p>
                   </div>
                   {!n.read && <span className="h-2 w-2 bg-primary rounded-full mt-1.5 shrink-0" />}
                 </div>
