@@ -6,50 +6,33 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
-import StockPage from "@/pages/StockPage";
-import DemandListPage from "@/pages/DemandListPage";
-import SupplyListPage from "@/pages/SupplyListPage";
-import ValidationPage from "@/pages/ValidationPage";
+import InventoryPage from "@/pages/InventoryPage";
+import AddChutePage from "@/pages/AddChutePage";
+import RequestsPage from "@/pages/RequestsPage";
+import StatisticsPage from "@/pages/StatisticsPage";
 import SettingsPage from "@/pages/SettingsPage";
-import AuditLogPage from "@/pages/AuditLogPage";
+import ArchivePage from "@/pages/ArchivePage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function AppRoutes() {
-  const { session, profile, loading } = useAuth();
+function ProtectedRoutes() {
+  const { user, hasPermission } = useAuth();
+  if (!user) return <LoginPage />;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center industrial-gradient">
-        <div className="text-secondary-foreground text-lg">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!session) return <LoginPage />;
-
-  const role = profile?.role;
+  const defaultPath = hasPermission('dashboard') ? '/' : '/inventory';
 
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/stock" element={<StockPage />} />
-        {(role === 'engineer' || role === 'stock_manager') && (
-          <Route path="/demands" element={<DemandListPage />} />
-        )}
-        {(role === 'magazinier' || role === 'stock_manager') && (
-          <Route path="/supplies" element={<SupplyListPage />} />
-        )}
-        {role === 'stock_manager' && (
-          <>
-            <Route path="/validation" element={<ValidationPage />} />
-            <Route path="/audit" element={<AuditLogPage />} />
-          </>
-        )}
+        {hasPermission('dashboard') && <Route path="/" element={<DashboardPage />} />}
+        {hasPermission('inventory') && <Route path="/inventory" element={<InventoryPage />} />}
+        {hasPermission('add_chute') && <Route path="/add-chute" element={<AddChutePage />} />}
+        {hasPermission('requests') && <Route path="/requests" element={<RequestsPage />} />}
+        {hasPermission('inventory') && <Route path="/archive" element={<ArchivePage />} />}
+        {hasPermission('statistics') && <Route path="/statistics" element={<StatisticsPage />} />}
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to={defaultPath} replace />} />
       </Route>
     </Routes>
   );
@@ -61,7 +44,7 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <ProtectedRoutes />
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
