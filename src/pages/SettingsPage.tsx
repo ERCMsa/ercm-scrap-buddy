@@ -25,7 +25,7 @@ export default function SettingsPage() {
   const { data: auditLog = [] } = useAuditLog();
   const qc = useQueryClient();
   const [language, setLang] = useState(getLanguage);
-  const isManager = hasRole('stock_manager');
+  const isManager = hasRole('stock_manager') || hasRole('admin');
 
   const handleRoleChange = async (profileId: string, newRole: AppRole) => {
     const { error } = await supabase
