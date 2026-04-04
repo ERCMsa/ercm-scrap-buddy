@@ -11,13 +11,13 @@ import { Button } from '@/components/ui/button';
 import NotificationBell from '@/components/NotificationBell';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
-  { path: '/inventory', label: 'Inventory', icon: Package, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
-  { path: '/add-stock', label: 'Add Stock', icon: PlusCircle, roles: ['stock_manager', 'magazinier'] as AppRole[] },
-  { path: '/requests', label: 'Lists', icon: FileText, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
-  { path: '/archive', label: 'Archive', icon: Archive, roles: ['stock_manager'] as AppRole[] },
-  { path: '/statistics', label: 'Statistics', icon: BarChart3, roles: ['stock_manager'] as AppRole[] },
-  { path: '/settings', label: 'Settings', icon: Settings, roles: ['stock_manager', 'engineer', 'magazinier'] as AppRole[] },
+  { path: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'stock_manager', 'engineer', 'magazinier'] as AppRole[] },
+  { path: '/inventory', label: 'Inventory', icon: Package, roles: ['admin', 'stock_manager', 'engineer', 'magazinier'] as AppRole[] },
+  { path: '/add-stock', label: 'Add Stock', icon: PlusCircle, roles: ['admin', 'magazinier'] as AppRole[] },
+  { path: '/requests', label: 'Lists', icon: FileText, roles: ['admin', 'stock_manager', 'engineer', 'magazinier'] as AppRole[] },
+  { path: '/archive', label: 'Archive', icon: Archive, roles: ['admin', 'stock_manager'] as AppRole[] },
+  { path: '/statistics', label: 'Statistics', icon: BarChart3, roles: ['admin', 'stock_manager'] as AppRole[] },
+  { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin', 'stock_manager', 'engineer', 'magazinier'] as AppRole[] },
 ];
 
 export default function AppLayout() {
