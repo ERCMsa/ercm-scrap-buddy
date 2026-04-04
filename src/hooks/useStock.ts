@@ -33,11 +33,11 @@ export function useAllStock() {
   });
 }
 
+// Direct add — stock_manager only
 export function useAddStock() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (item: { item_type: string; item_name: string; length: number | null; quantity: number; min_quantity?: number }) => {
-      // Check if stock with same type+name+length exists
       let query = supabase.from('stock').select('*').eq('item_type', item.item_type).eq('item_name', item.item_name);
       if (item.length !== null) {
         query = query.eq('length', item.length);
@@ -70,5 +70,29 @@ export function useAddStock() {
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock'] }),
+  });
+}
+
+// Find existing stock or create a zero-qty placeholder (magazinier)
+export function useFindOrCreateStock() {
+  return useMutation({
+    mutationFn: async (item: { item_type: string; item_name: string; length: number | null }): Promise<string> => {
+      let query = supabase.from('stock').select('id').eq('item_type', item.item_type).eq('item_name', item.item_name);
+      if (item.length !== null) {
+        query = query.eq('length', item.length);
+      } else {
+        query = query.is('length', null);
+      }
+      const { data: existing } = await query.maybeSingle();
+      if (existing) return existing.id;
+
+      const { data, error } = await supabase
+        .from('stock')
+        .insert({ item_type: item.item_type, item_name: item.item_name, length: item.length, quantity: 0 })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data.id;
+    },
   });
 }
