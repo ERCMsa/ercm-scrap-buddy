@@ -2,7 +2,7 @@ import { useStock } from '@/hooks/useStock';
 import { useDemandLists } from '@/hooks/useDemandLists';
 import { useSupplyLists } from '@/hooks/useSupplyLists';
 import { useAuth } from '@/contexts/AuthContext';
-import { Package, AlertTriangle, FileText, TrendingUp, Layers } from 'lucide-react';
+import { Package, FileText, TrendingUp, Layers } from 'lucide-react';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -11,7 +11,6 @@ export default function DashboardPage() {
   const { data: supplyLists = [] } = useSupplyLists();
 
   const totalItems = stock.reduce((sum, s) => sum + s.quantity, 0);
-  const lowStock = stock.filter(s => s.min_quantity > 0 && s.quantity <= s.min_quantity);
   const pendingDemands = demandLists.filter(d => d.status === 'pending').length;
   const pendingSupplies = supplyLists.filter(s => s.status === 'pending').length;
   const approvedDemands = demandLists.filter(d => d.status === 'approved').length;
@@ -19,8 +18,8 @@ export default function DashboardPage() {
   const cards = [
     { label: 'Total Pieces', value: totalItems, icon: Package, color: 'bg-secondary' },
     { label: 'Stock Types', value: stock.length, icon: Layers, color: 'bg-info' },
-    { label: 'Low Stock Alerts', value: lowStock.length, icon: AlertTriangle, color: 'bg-warning' },
     { label: 'Pending Demands', value: pendingDemands, icon: FileText, color: 'bg-primary' },
+    { label: 'Pending Supplies', value: pendingSupplies, icon: FileText, color: 'bg-warning' },
     { label: 'Approved Demands', value: approvedDemands, icon: TrendingUp, color: 'bg-success' },
   ];
 
@@ -44,23 +43,6 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
-
-      {lowStock.length > 0 && (
-        <div className="stat-card">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            <h3 className="font-semibold text-foreground">Low Stock Items</h3>
-          </div>
-          <ul className="space-y-2">
-            {lowStock.map(s => (
-              <li key={s.id} className="flex justify-between text-sm py-1 border-b last:border-0">
-                <span className="text-foreground font-medium">{s.item_type} {s.item_name}{s.length ? ` - ${s.length}mm` : ''}</span>
-                <span className="text-warning font-bold">{s.quantity} / {s.min_quantity} min</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="stat-card">

@@ -31,7 +31,7 @@ export default function RequestsPage() {
   const updateSupply = useUpdateSupplyStatus();
   const [confirmAction, setConfirmAction] = useState<{ type: 'demand' | 'supply'; id: string; status: 'approved' | 'rejected' } | null>(null);
 
-  const isManager = hasRole('stock_manager');
+  const isManager = hasRole('stock_manager') || hasRole('admin');
 
   const getProfileName = (id: string) => profiles.find(p => p.id === id)?.display_name || 'Unknown';
   const getStockName = (id: string) => {

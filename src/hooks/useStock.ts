@@ -9,7 +9,6 @@ export function useStock() {
       const { data, error } = await supabase
         .from('stock')
         .select('*')
-        .gt('quantity', 0)
         .order('item_type')
         .order('item_name');
       if (error) throw error;

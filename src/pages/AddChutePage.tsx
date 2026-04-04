@@ -11,12 +11,19 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { PlusCircle, Plus } from 'lucide-react';
+import { PlusCircle, Plus, Trash2, Send } from 'lucide-react';
 import type { SteelType } from '@/types';
 import ExcelImport from '@/components/ExcelImport';
 
+interface CartItem {
+  steelType: SteelType;
+  sectionSize: string;
+  length: string;
+  quantity: string;
+}
+
 export default function AddStockPage() {
-  const { profile } = useAuth();
+  const { profile, hasRole } = useAuth();
   const addStock = useAddStock();
   const findOrCreate = useFindOrCreateStock();
   const createSupplyList = useCreateSupplyList();
@@ -27,12 +34,13 @@ export default function AddStockPage() {
   const [showCustomSize, setShowCustomSize] = useState(false);
   const [length, setLength] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [minQuantity, setMinQuantity] = useState('0');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
-  const isManager = profile?.role === 'stock_manager';
+  const isAdmin = profile?.role === 'admin';
   const isMagazinier = profile?.role === 'magazinier';
+  const doDirectAdd = isAdmin;
 
   const customSizes = getCustomSizes();
   const allSizes = [
@@ -52,14 +60,17 @@ export default function AddStockPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!sectionSize || !length || !quantity) { toast.error('Fill all fields'); return; }
-    if (isMagazinier) {
-      setConfirmOpen(true);
+    if (doDirectAdd) {
+      handleDirectAdd();
     } else {
-      doDirectAdd();
+      // Magazinier: add to cart
+      setCart([...cart, { steelType, sectionSize, length, quantity }]);
+      toast.success('Item added to list');
+      resetForm();
     }
   };
 
-  const doDirectAdd = async () => {
+  const handleDirectAdd = async () => {
     setPending(true);
     try {
       await addStock.mutateAsync({
@@ -67,13 +78,12 @@ export default function AddStockPage() {
         item_name: sectionSize,
         length: parseInt(length),
         quantity: parseInt(quantity),
-        min_quantity: parseInt(minQuantity) || 0,
       });
       addNotification({
         type: 'supply_submitted',
         title: 'Stock Added',
         message: `${steelType} ${sectionSize} - ${length}mm (×${quantity}) added by ${profile?.display_name}`,
-        forRoles: ['stock_manager'],
+        forRoles: ['stock_manager', 'admin'],
       });
       toast.success(`Stock added: ${steelType} ${sectionSize} × ${quantity}`);
       resetForm();
@@ -84,32 +94,38 @@ export default function AddStockPage() {
     }
   };
 
-  const doSupplyListSubmit = async () => {
+  const handleSubmitSupplyList = async () => {
     setConfirmOpen(false);
     setPending(true);
     try {
-      const stockId = await findOrCreate.mutateAsync({
-        item_type: steelType,
-        item_name: sectionSize,
-        length: parseInt(length),
-      });
-      await createSupplyList.mutateAsync({
-        items: [{ stock_id: stockId, supplied_quantity: parseInt(quantity) }],
-        notes: `${steelType} ${sectionSize} - ${length}mm`,
-      });
+      const items: { stock_id: string; supplied_quantity: number }[] = [];
+      for (const item of cart) {
+        const stockId = await findOrCreate.mutateAsync({
+          item_type: item.steelType,
+          item_name: item.sectionSize,
+          length: parseInt(item.length),
+        });
+        items.push({ stock_id: stockId, supplied_quantity: parseInt(item.quantity) });
+      }
+      const notes = cart.map(i => `${i.steelType} ${i.sectionSize} - ${i.length}mm ×${i.quantity}`).join(', ');
+      await createSupplyList.mutateAsync({ items, notes });
       addNotification({
         type: 'supply_submitted',
         title: 'Supply List Submitted',
-        message: `${steelType} ${sectionSize} - ${length}mm (×${quantity}) submitted by ${profile?.display_name}`,
-        forRoles: ['stock_manager'],
+        message: `${cart.length} item(s) submitted by ${profile?.display_name}`,
+        forRoles: ['stock_manager', 'admin'],
       });
       toast.success('Supply list submitted for approval');
-      resetForm();
+      setCart([]);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit supply list');
     } finally {
       setPending(false);
     }
+  };
+
+  const removeFromCart = (index: number) => {
+    setCart(cart.filter((_, i) => i !== index));
   };
 
   const resetForm = () => {
@@ -118,18 +134,27 @@ export default function AddStockPage() {
     setSectionSize('');
   };
 
+  // Stock manager shouldn't be here
+  if (profile?.role === 'stock_manager') {
+    return (
+      <div className="animate-fade-in p-8 text-center text-muted-foreground">
+        Stock Managers can only validate or reject lists. Use the Lists page to manage requests.
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in max-w-2xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-2xl font-bold text-foreground">
-          {isManager ? 'Add Stock' : 'Submit Supply List'}
+          {doDirectAdd ? 'Add Stock' : 'Submit Supply List'}
         </h2>
-        {isManager && <ExcelImport />}
+        {doDirectAdd && <ExcelImport />}
       </div>
 
       {isMagazinier && (
         <div className="bg-accent/20 border border-accent rounded-lg p-3 mb-4 text-sm text-muted-foreground">
-          Items you submit will be sent to the Stock Manager for approval before being added to inventory.
+          Add items to your list below, then submit for Stock Manager approval.
         </div>
       )}
 
@@ -174,32 +199,53 @@ export default function AddStockPage() {
             <Label>Quantity</Label>
             <Input type="number" min={1} value={quantity} onChange={e => setQuantity(e.target.value)} className="h-12" />
           </div>
-          {isManager && (
-            <div>
-              <Label>Min Quantity (alert threshold)</Label>
-              <Input type="number" min={0} value={minQuantity} onChange={e => setMinQuantity(e.target.value)} className="h-12" />
-            </div>
-          )}
         </div>
 
         <Button type="submit" className="btn-industrial red-gradient gap-2 w-full sm:w-auto" disabled={pending}>
           <PlusCircle className="h-5 w-5" />
-          {pending ? 'Submitting...' : isManager ? 'Add Stock' : 'Submit for Approval'}
+          {pending ? 'Submitting...' : doDirectAdd ? 'Add Stock' : 'Add to List'}
         </Button>
       </form>
+
+      {/* Magazinier cart */}
+      {!doDirectAdd && cart.length > 0 && (
+        <div className="mt-6 bg-card rounded-lg border p-4 space-y-3">
+          <h3 className="font-semibold text-foreground">Items to Submit ({cart.length})</h3>
+          <div className="space-y-2">
+            {cart.map((item, i) => (
+              <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
+                <span className="text-sm text-foreground">
+                  {item.steelType} {item.sectionSize} – {item.length}mm × {item.quantity}
+                </span>
+                <Button type="button" variant="ghost" size="icon" onClick={() => removeFromCart(i)} className="text-destructive hover:text-destructive h-8 w-8">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button onClick={() => setConfirmOpen(true)} className="btn-industrial red-gradient gap-2" disabled={pending}>
+            <Send className="h-5 w-5" />
+            Submit Supply List ({cart.length} items)
+          </Button>
+        </div>
+      )}
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Supply Submission</DialogTitle>
             <DialogDescription>
-              This will create a supply list for <strong>{steelType} {sectionSize}</strong> – {length}mm × {quantity}.
-              It will be sent to the Stock Manager for approval.
+              You are about to submit {cart.length} item(s) for Stock Manager approval:
             </DialogDescription>
           </DialogHeader>
+          <ul className="space-y-1 text-sm px-2">
+            {cart.map((item, i) => (
+              <li key={i} className="text-foreground">• {item.steelType} {item.sectionSize} – {item.length}mm × {item.quantity}</li>
+            ))}
+          </ul>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
-            <Button onClick={doSupplyListSubmit} className="red-gradient">Confirm</Button>
+            <Button onClick={handleSubmitSupplyList} className="red-gradient">Confirm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

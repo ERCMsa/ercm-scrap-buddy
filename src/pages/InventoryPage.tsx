@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Send, AlertTriangle } from 'lucide-react';
+import { Search, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -69,7 +69,7 @@ export default function InventoryPage() {
         type: 'demand_submitted',
         title: 'New Demand List',
         message: `${profile?.display_name} submitted a demand list (${selectedItems.length} items)`,
-        forRoles: ['stock_manager'],
+        forRoles: ['stock_manager', 'admin'],
       });
       toast.success('Demand list submitted');
       setDemandItems({});
@@ -79,7 +79,7 @@ export default function InventoryPage() {
     }
   };
 
-  const isEngineer = hasRole('engineer');
+  const canRequestDemand = hasRole('engineer');
 
   if (isLoading) return <div className="animate-fade-in p-8 text-center text-muted-foreground">Loading inventory...</div>;
 
@@ -87,7 +87,7 @@ export default function InventoryPage() {
     <div className="animate-fade-in space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold text-foreground">Stock Inventory</h2>
-        {isEngineer && selectedItems.length > 0 && (
+        {canRequestDemand && selectedItems.length > 0 && (
           <Button onClick={() => setConfirmOpen(true)} size="lg" className="btn-industrial red-gradient gap-2 text-base" disabled={hasErrors}>
             <Send className="h-5 w-5" />
             Submit Demand ({selectedItems.length} items)
@@ -119,48 +119,51 @@ export default function InventoryPage() {
               <th className="p-3 text-left">Section</th>
               <th className="p-3 text-right">Length (mm)</th>
               <th className="p-3 text-center">Quantity</th>
-              <th className="p-3 text-center">Min Qty</th>
-              {isEngineer && <th className="p-3 text-center">Request Qty</th>}
+              {canRequestDemand && <th className="p-3 text-center">Request Qty</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.map(s => {
-              const isLow = s.quantity <= s.min_quantity && s.min_quantity > 0;
+              const isUnavailable = s.quantity === 0;
               return (
-                <tr key={s.id} className={`border-t hover:bg-accent/50 transition-colors ${isLow ? 'bg-warning/10' : ''}`}>
+                <tr key={s.id} className={`border-t hover:bg-accent/50 transition-colors ${isUnavailable ? 'opacity-60' : ''}`}>
                   <td className="p-3 font-semibold text-foreground">{s.item_type}</td>
                   <td className="p-3 text-foreground">{s.item_type} {s.item_name}</td>
                   <td className="p-3 text-right font-mono text-foreground">{s.length ?? '—'}</td>
                   <td className="p-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
+                    {isUnavailable ? (
+                      <Badge variant="secondary" className="bg-muted text-muted-foreground">Not Available</Badge>
+                    ) : (
                       <span className="font-bold text-foreground">{s.quantity}</span>
-                      {isLow && <AlertTriangle className="h-4 w-4 text-warning" />}
-                    </div>
+                    )}
                   </td>
-                  <td className="p-3 text-center text-muted-foreground">{s.min_quantity}</td>
-                  {isEngineer && (
+                  {canRequestDemand && (
                     <td className="p-3 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={s.quantity}
-                          value={demandItems[s.id] || ''}
-                          onChange={e => updateDemandQty(s.id, parseInt(e.target.value) || 0, s.quantity)}
-                          className="w-20 h-9 text-center"
-                          placeholder="0"
-                        />
-                        {errors[s.id] && (
-                          <span className="text-destructive text-xs font-medium">{errors[s.id]}</span>
-                        )}
-                      </div>
+                      {isUnavailable ? (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={s.quantity}
+                            value={demandItems[s.id] || ''}
+                            onChange={e => updateDemandQty(s.id, parseInt(e.target.value) || 0, s.quantity)}
+                            className="w-20 h-9 text-center"
+                            placeholder="0"
+                          />
+                          {errors[s.id] && (
+                            <span className="text-destructive text-xs font-medium">{errors[s.id]}</span>
+                          )}
+                        </div>
+                      )}
                     </td>
                   )}
                 </tr>
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={isEngineer ? 6 : 5} className="p-8 text-center text-muted-foreground">No stock items found</td></tr>
+              <tr><td colSpan={canRequestDemand ? 5 : 4} className="p-8 text-center text-muted-foreground">No stock items found</td></tr>
             )}
           </tbody>
         </table>
