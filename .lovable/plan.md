@@ -1,67 +1,107 @@
 
 
-# Plan: Fix Supply List Workflow
+# Plan: Four Changes to Role Logic and Inventory Behavior
 
-## Problem
+## Summary of Changes
 
-The current "Add Stock" page lets magaziniers insert stock **directly** into the database, bypassing the supply list approval workflow. This is both a logic error and a permissions issue (RLS only allows `stock_manager` to insert into the `stock` table directly).
+1. **Remove `min_quantity`** — if quantity is 0, show "Not Available" and disable selection in demand flow
+2. **Magazinier can add multiple items to a supply list** — add a "cart" pattern to AddStockPage
+3. **Add `admin` role** — can do everything (add/remove stock directly, approve/reject, manage users)
+4. **Stock Manager cannot add stock** — can only validate/reject demand and supply lists
 
-The correct flow should be:
-- **Engineer** → selects items from inventory → creates a **Demand List** → stock manager approves → stock is **subtracted**
-- **Magazinier** → specifies items to add → creates a **Supply List** → stock manager approves → stock is **added**
+## Technical Details
 
-Both flows require stock manager approval before any stock changes occur.
+### 1. Remove min_quantity, handle zero-stock display
 
-## Changes
+**InventoryPage.tsx**:
+- Remove the "Min Qty" column from the table
+- When `quantity === 0`: show "Not Available" badge, disable the request quantity input
+- Remove `min_quantity` references and low-stock alert logic
+- The `useStock` hook already filters `quantity > 0` — change to show ALL stock (including 0) so engineers can see what exists but mark 0-qty as unavailable
 
-### 1. Rewrite AddStockPage to create Supply Lists (not direct inserts)
+**AddChutePage.tsx**: Remove the min_quantity input field entirely.
 
-The magazinier fills in item details (type, section, length, quantity) and submits a **supply list** for approval — just like engineers submit demand lists. The form stays the same but calls `useCreateSupplyList` instead of `useAddStock`.
+**DashboardPage.tsx**: Remove low-stock alert references tied to min_quantity.
 
-For items that already exist in stock, the supply list references the existing `stock_id`. For **new items** (type+section+length combo not in stock), the page must first create a stock row with quantity=0 (or handle this in the approval trigger).
+### 2. Magazinier multi-item supply list
 
-**Problem**: RLS only allows `stock_manager` to insert into `stock`. Two options:
-- **Option A**: Allow magazinier to insert stock rows with quantity=0 (add RLS policy)
-- **Option B**: Store item details (type, name, length) directly on `supply_list_items` so no stock row is needed until approval
+**AddChutePage.tsx**: Add a "cart" list where the magazinier can add multiple items before submitting one supply list:
+- After filling type/section/length/qty, click "Add to List" (instead of submitting immediately)
+- Items accumulate in a local array displayed below the form
+- A "Submit Supply List" button sends all items at once via `useCreateSupplyList`
+- Each item in the cart can be removed before submission
+- Confirmation dialog shows all items before final submission
 
-Option B requires a schema change. Option A is simpler — add an RLS policy allowing magazinier to insert stock with quantity=0, and the approval trigger handles the rest.
+### 3. Add `admin` role
 
-**Recommended: Option A** — Add an RLS INSERT policy for magazinier on the `stock` table (restricted to quantity=0 inserts).
+**Database migration**:
+- Add `'admin'` to the `app_role` enum
+- Add RLS policies for admin on all tables (admin can do everything)
+- Update `has_role` function — or add separate admin policies that grant full access
 
-### 2. Database migration
+**types/index.ts**: Add `'admin'` to `AppRole`, add label to `ROLE_LABELS`.
+
+**AuthContext.tsx**: Update `hasRole` — admin implicitly has all roles.
+
+**All pages**: Where we check `isManager`, also check `isAdmin`. Simplest approach: make `hasRole` return `true` for any role if the user is admin.
+
+**AppLayout.tsx**: Admin sees all nav items.
+
+**AddChutePage.tsx**: Admin can add stock directly (like current stock_manager behavior).
+
+**InventoryPage.tsx**: Admin can request items and also directly manage stock.
+
+**RequestsPage.tsx**: Admin can approve/reject all lists.
+
+**SettingsPage.tsx**: Admin can manage users and see audit log. Admin can also delete stock items.
+
+### 4. Stock Manager cannot add stock directly
+
+**AppLayout.tsx**: Remove `stock_manager` from the `Add Stock` nav item roles. Only `admin` and `magazinier` see it.
+
+**AddChutePage.tsx**: Remove the `isManager` direct-add path. Stock managers who somehow reach the page get redirected or see a message. Only `admin` gets `doDirectAdd`, magazinier gets supply list flow.
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/types/index.ts` | Add `'admin'` to AppRole, ROLE_LABELS |
+| `src/contexts/AuthContext.tsx` | `hasRole` returns true for everything if admin |
+| `src/pages/InventoryPage.tsx` | Remove min_qty column, disable 0-qty items, show all stock |
+| `src/pages/AddChutePage.tsx` | Multi-item cart for magazinier, remove min_qty field, admin direct add, remove stock_manager direct add |
+| `src/components/AppLayout.tsx` | Update nav roles (admin everywhere, remove stock_manager from Add Stock) |
+| `src/pages/DashboardPage.tsx` | Remove min_quantity alerts |
+| `src/pages/SettingsPage.tsx` | Admin can manage users |
+| `src/pages/RequestsPage.tsx` | Admin can approve/reject |
+| `src/hooks/useStock.ts` | `useStock` returns all items (including qty=0) |
+| Migration SQL | Add admin to app_role enum, add admin RLS policies |
+
+## Database Migration
 
 ```sql
--- Allow magazinier to insert stock items (quantity must be 0, placeholder for supply list references)
-CREATE POLICY "Magazinier can insert zero-qty stock"
-ON public.stock FOR INSERT TO authenticated
-WITH CHECK (has_role('magazinier') AND quantity = 0);
+-- Add admin role
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'admin';
+
+-- Admin full access policies for all tables
+CREATE POLICY "Admin full access stock" ON public.stock FOR ALL TO authenticated
+USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
+
+CREATE POLICY "Admin full access demand_lists" ON public.demand_lists FOR ALL TO authenticated
+USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
+
+CREATE POLICY "Admin full access demand_list_items" ON public.demand_list_items FOR ALL TO authenticated
+USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
+
+CREATE POLICY "Admin full access supply_lists" ON public.supply_lists FOR ALL TO authenticated
+USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
+
+CREATE POLICY "Admin full access supply_list_items" ON public.supply_list_items FOR ALL TO authenticated
+USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
+
+CREATE POLICY "Admin full access audit_log" ON public.audit_log FOR ALL TO authenticated
+USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
+
+CREATE POLICY "Admin full access profiles" ON public.profiles FOR ALL TO authenticated
+USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
 ```
-
-### 3. Update AddStockPage
-
-- Replace `useAddStock` call with a two-step flow:
-  1. Find or create the stock item (with quantity=0 if new)
-  2. Call `useCreateSupplyList` with the stock_id and supplied_quantity
-- Add a confirmation dialog before submission
-- Show the list will go to the stock manager for approval
-
-### 4. Stock Manager direct add (optional)
-
-Keep `useAddStock` available only for `stock_manager` role, who can bypass the supply list workflow if needed. On AddStockPage, if user is `stock_manager`, add stock directly. If `magazinier`, create a supply list.
-
-### 5. Update supply approval trigger
-
-The existing `handle_supply_approval` trigger already adds quantities on approval. Verify it also handles the case where the stock row was created with quantity=0 (it does — it runs `SET quantity = s.quantity + sli.supplied_quantity`).
-
-## Files to modify
-
-| File | Change |
-|------|--------|
-| `src/pages/AddChutePage.tsx` | Rewrite: magazinier creates supply list, stock_manager adds directly |
-| `src/hooks/useStock.ts` | Keep `useAddStock` for stock_manager only; add `useFindOrCreateStock` for magazinier |
-| Migration SQL | Add magazinier INSERT policy on stock table |
-
-## Summary
-
-This ensures all stock changes go through the approval workflow. Engineers request stock (demand), magaziniers add stock (supply), and the stock manager validates both.
 
