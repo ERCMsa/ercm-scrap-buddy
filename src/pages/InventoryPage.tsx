@@ -4,6 +4,19 @@ import { useCreateDemandList } from '@/hooks/useDemandLists';
 import { useAuth } from '@/contexts/AuthContext';
 import { STEEL_TYPES, StockItem } from '@/types';
 import { addNotification } from '@/lib/notifications';
+import poidsData from '@/static/poids.json';
+
+const poidsMap: Record<string, number> = {};
+poidsData.forEach((p: { designation: string; poids: number }) => {
+  poidsMap[p.designation.trim()] = p.poids;
+});
+
+function calcPoids(item: StockItem): number | null {
+  const designation = `${item.item_type} ${item.item_name}`.trim();
+  const poidsSection = poidsMap[designation];
+  if (poidsSection == null || item.length == null) return null;
+  return Math.round(poidsSection * (item.length / 1000) * 100) / 100;
+}
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
