@@ -131,6 +131,7 @@ export default function InventoryPage() {
               <th className="p-3 text-left">Type</th>
               <th className="p-3 text-left">Section</th>
               <th className="p-3 text-right">Length (mm)</th>
+              <th className="p-3 text-right">Poids (kg)</th>
               <th className="p-3 text-center">Quantity</th>
               {canRequestDemand && <th className="p-3 text-center">Request Qty</th>}
             </tr>
