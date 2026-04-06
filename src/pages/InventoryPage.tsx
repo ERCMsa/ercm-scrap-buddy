@@ -4,6 +4,19 @@ import { useCreateDemandList } from '@/hooks/useDemandLists';
 import { useAuth } from '@/contexts/AuthContext';
 import { STEEL_TYPES, StockItem } from '@/types';
 import { addNotification } from '@/lib/notifications';
+import poidsData from '@/static/poids.json';
+
+const poidsMap: Record<string, number> = {};
+poidsData.forEach((p: { designation: string; poids: number }) => {
+  poidsMap[p.designation.trim()] = p.poids;
+});
+
+function calcPoids(item: StockItem): number | null {
+  const designation = `${item.item_type} ${item.item_name}`.trim();
+  const poidsSection = poidsMap[designation];
+  if (poidsSection == null || item.length == null) return null;
+  return Math.round(poidsSection * (item.length / 1000) * 100) / 100;
+}
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -118,6 +131,7 @@ export default function InventoryPage() {
               <th className="p-3 text-left">Type</th>
               <th className="p-3 text-left">Section</th>
               <th className="p-3 text-right">Length (mm)</th>
+              <th className="p-3 text-right">Poids (kg)</th>
               <th className="p-3 text-center">Quantity</th>
               {canRequestDemand && <th className="p-3 text-center">Request Qty</th>}
             </tr>
@@ -125,11 +139,13 @@ export default function InventoryPage() {
           <tbody>
             {filtered.map(s => {
               const isUnavailable = s.quantity === 0;
+              const poids = calcPoids(s);
               return (
                 <tr key={s.id} className={`border-t hover:bg-accent/50 transition-colors ${isUnavailable ? 'opacity-60' : ''}`}>
                   <td className="p-3 font-semibold text-foreground">{s.item_type}</td>
                   <td className="p-3 text-foreground">{s.item_type} {s.item_name}</td>
                   <td className="p-3 text-right font-mono text-foreground">{s.length ?? '—'}</td>
+                  <td className="p-3 text-right font-mono text-foreground">{poids != null ? poids : '—'}</td>
                   <td className="p-3 text-center">
                     {isUnavailable ? (
                       <Badge variant="secondary" className="bg-muted text-muted-foreground">Not Available</Badge>
@@ -163,7 +179,7 @@ export default function InventoryPage() {
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={canRequestDemand ? 5 : 4} className="p-8 text-center text-muted-foreground">No stock items found</td></tr>
+              <tr><td colSpan={canRequestDemand ? 6 : 5} className="p-8 text-center text-muted-foreground">No stock items found</td></tr>
             )}
           </tbody>
         </table>
