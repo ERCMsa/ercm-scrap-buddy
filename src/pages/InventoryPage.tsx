@@ -179,7 +179,7 @@ export default function InventoryPage() {
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={canRequestDemand ? 5 : 4} className="p-8 text-center text-muted-foreground">No stock items found</td></tr>
+              <tr><td colSpan={canRequestDemand ? 6 : 5} className="p-8 text-center text-muted-foreground">No stock items found</td></tr>
             )}
           </tbody>
         </table>
