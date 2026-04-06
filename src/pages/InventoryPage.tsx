@@ -139,11 +139,13 @@ export default function InventoryPage() {
           <tbody>
             {filtered.map(s => {
               const isUnavailable = s.quantity === 0;
+              const poids = calcPoids(s);
               return (
                 <tr key={s.id} className={`border-t hover:bg-accent/50 transition-colors ${isUnavailable ? 'opacity-60' : ''}`}>
                   <td className="p-3 font-semibold text-foreground">{s.item_type}</td>
                   <td className="p-3 text-foreground">{s.item_type} {s.item_name}</td>
                   <td className="p-3 text-right font-mono text-foreground">{s.length ?? '—'}</td>
+                  <td className="p-3 text-right font-mono text-foreground">{poids != null ? poids : '—'}</td>
                   <td className="p-3 text-center">
                     {isUnavailable ? (
                       <Badge variant="secondary" className="bg-muted text-muted-foreground">Not Available</Badge>
