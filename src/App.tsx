@@ -12,6 +12,7 @@ import RequestsPage from "@/pages/RequestsPage";
 import StatisticsPage from "@/pages/StatisticsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ArchivePage from "@/pages/ArchivePage";
+import ReceptionPage from "@/pages/ReceptionPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ function ProtectedRoutes() {
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/add-stock" element={<AddStockPage />} />
         <Route path="/requests" element={<RequestsPage />} />
+        <Route path="/reception/:id" element={<ReceptionPage />} />
         <Route path="/archive" element={<ArchivePage />} />
         <Route path="/statistics" element={<StatisticsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
