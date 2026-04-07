@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemandLists, useUpdateDemandStatus } from '@/hooks/useDemandLists';
 import { useSupplyLists, useUpdateSupplyStatus } from '@/hooks/useSupplyLists';
@@ -8,7 +9,7 @@ import { addNotification } from '@/lib/notifications';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X } from 'lucide-react';
+import { Check, X, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -22,6 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function RequestsPage() {
+  const navigate = useNavigate();
   const { hasRole } = useAuth();
   const { data: demandLists = [], isLoading: dl } = useDemandLists();
   const { data: supplyLists = [], isLoading: sl } = useSupplyLists();
@@ -138,11 +140,8 @@ export default function RequestsPage() {
                     <Badge className={STATUS_COLORS[sl.status]}>{sl.status}</Badge>
                     {isManager && sl.status === 'pending' && (
                       <>
-                        <Button size="sm" onClick={() => setConfirmAction({ type: 'supply', id: sl.id, status: 'approved' })} className="bg-success text-success-foreground hover:bg-success/90 gap-1">
-                          <Check className="h-4 w-4" /> Approve
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => setConfirmAction({ type: 'supply', id: sl.id, status: 'rejected' })} className="gap-1">
-                          <X className="h-4 w-4" /> Reject
+                        <Button size="sm" onClick={() => navigate(`/reception/${sl.id}`)} className="gap-1 bg-primary text-primary-foreground hover:bg-primary/90">
+                          <ClipboardCheck className="h-4 w-4" /> Review Reception
                         </Button>
                       </>
                     )}
