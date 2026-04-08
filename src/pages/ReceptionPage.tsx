@@ -180,7 +180,9 @@ export default function ReceptionPage() {
     setConfirmSubmitOpen(false);
     setPending(true);
     try {
-      // For added items by manager, directly add stock
+      // Only manually add stock for items added by the manager (not in supply_list_items).
+      // Original items are handled by the handle_supply_approval() database trigger
+      // when the supply list status changes to 'approved'.
       for (const item of addedItems) {
         const s = getStockItem(item.stock_id);
         if (s) {
