@@ -85,27 +85,27 @@ export default function ReceptionPage() {
     return Math.round(ps * (length / 1000) * 100) / 100;
   };
 
-  // Initialize review items from supply list
-  useMemo(() => {
-    if (supplyList && stock.length > 0 && reviewItems === null) {
-      const items: ReviewItem[] = supplyList.supply_list_items.map(item => {
-        const s = getStockItem(item.stock_id);
-        const name = s ? `${s.item_type} ${s.item_name}${s.length ? ` - ${s.length}mm` : ''}` : 'Unknown';
-        return {
-          id: item.id,
-          stock_id: item.stock_id,
-          name,
-          quantity: item.supplied_quantity,
-          length: s?.length ?? null,
-          poids: s ? calcPoids(s.item_type, s.item_name, s.length) : null,
-          status: 'pending' as ItemStatus,
-          rejectReason: '',
-          addedByManager: false,
-        };
-      });
-      setReviewItems(items);
-    }
-  }, [supplyList, stock]);
+  // Initialize review items from supply list (using useRef to avoid useMemo side effects)
+  const initialized = useRef(false);
+  if (supplyList && stock.length > 0 && !initialized.current && reviewItems === null) {
+    initialized.current = true;
+    const items: ReviewItem[] = supplyList.supply_list_items.map(item => {
+      const s = getStockItem(item.stock_id);
+      const name = s ? `${s.item_type} ${s.item_name}${s.length ? ` - ${s.length}mm` : ''}` : 'Unknown';
+      return {
+        id: item.id,
+        stock_id: item.stock_id,
+        name,
+        quantity: item.supplied_quantity,
+        length: s?.length ?? null,
+        poids: s ? calcPoids(s.item_type, s.item_name, s.length) : null,
+        status: 'pending' as ItemStatus,
+        rejectReason: '',
+        addedByManager: false,
+      };
+    });
+    setReviewItems(items);
+  }
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
   if (!supplyList) return <div className="p-8 text-center text-muted-foreground">Supply list not found</div>;
