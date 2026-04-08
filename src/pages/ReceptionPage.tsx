@@ -64,6 +64,7 @@ export default function ReceptionPage() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const submittedRef = useRef(false);
 
   // Add item form
   const [newSteelType, setNewSteelType] = useState<SteelType>('IPE');
