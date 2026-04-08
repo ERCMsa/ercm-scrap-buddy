@@ -178,6 +178,8 @@ export default function ReceptionPage() {
   };
 
   const handleSubmit = async () => {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
     setConfirmSubmitOpen(false);
     setPending(true);
     try {
