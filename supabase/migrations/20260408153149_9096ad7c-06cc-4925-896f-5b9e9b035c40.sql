@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS on_supply_approval ON public.supply_lists;
