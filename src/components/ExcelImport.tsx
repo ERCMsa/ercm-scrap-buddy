@@ -6,22 +6,28 @@ import { toast } from 'sonner';
 import { useAddStock } from '@/hooks/useStock';
 import { STEEL_TYPES } from '@/types';
 
-interface ExcelRow {
-  [key: string]: any;
+function findValue(row: Record<string, any>, candidates: string[]): any {
+  const keys = Object.keys(row);
+  for (const candidate of candidates) {
+    const found = keys.find(k => k.trim().toLowerCase() === candidate.toLowerCase());
+    if (found !== undefined && row[found] !== undefined) return row[found];
+  }
+  return undefined;
 }
 
 function normalizeRow(row: any): { steelType: string; sectionSize: string; length: number; quantity: number } | null {
-  const steelType = row.steelType || row.SteelType || row.steel_type || row.Type || row.type || row['Steel Type'] || '';
-  const sectionSize = String(row.sectionSize || row.SectionSize || row.section_size || row.Section || row.section || row['Section Size'] || '');
-  const length = Number(row.length || row.Length || row['Length (mm)'] || 0);
-  const quantity = Number(row.quantity || row.Quantity || row.qty || row.Qty || 1);
+  const steelType = findValue(row, ['Steel Type', 'steelType', 'steel_type', 'Type', 'type']);
+  const sectionSize = String(findValue(row, ['Section', 'Section Size', 'sectionSize', 'section_size', 'section']) ?? '');
+  const length = Number(findValue(row, ['Length (mm)', 'Length', 'length']) ?? 0);
+  const quantityRaw = findValue(row, ['Quantity', 'quantity', 'qty', 'Qty']);
+  const quantity = quantityRaw === undefined ? 1 : Math.max(0, Number(quantityRaw) || 0);
 
   if (!steelType || !sectionSize || !length) return null;
 
-  const normalizedType = STEEL_TYPES.find(t => t.toLowerCase() === steelType.toString().toLowerCase());
+  const normalizedType = STEEL_TYPES.find(t => t.toLowerCase() === steelType.toString().trim().toLowerCase());
   if (!normalizedType) return null;
 
-  return { steelType: normalizedType, sectionSize, length, quantity: Math.max(1, quantity) };
+  return { steelType: normalizedType, sectionSize: sectionSize.trim(), length, quantity: Math.max(1, quantity) };
 }
 
 export default function ExcelImport() {
@@ -39,6 +45,9 @@ export default function ExcelImport() {
       const rows: any[] = XLSX.utils.sheet_to_json(ws);
 
       if (rows.length === 0) { toast.error('The Excel file is empty'); return; }
+
+      // Debug: show detected headers if needed
+      const headers = Object.keys(rows[0]).map(k => k.trim()).join(', ');
 
       let added = 0;
       let skipped = 0;
@@ -60,7 +69,11 @@ export default function ExcelImport() {
         }
       }
 
-      toast.success(`Imported ${added} items${skipped > 0 ? `, ${skipped} rows skipped` : ''}`);
+      if (added === 0 && skipped > 0) {
+        toast.error(`No rows imported. Detected headers: ${headers}. Expected: Steel Type, Section, Length (mm), Quantity`);
+      } else {
+        toast.success(`Imported ${added} items${skipped > 0 ? `, ${skipped} rows skipped` : ''}`);
+      }
     } catch {
       toast.error('Failed to read Excel file');
     }
