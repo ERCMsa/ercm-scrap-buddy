@@ -1,107 +1,37 @@
 
 
-# Plan: Four Changes to Role Logic and Inventory Behavior
+# Fix: Excel Import Not Working with User's Headers
 
-## Summary of Changes
+## Problem
+The Excel import fails silently (all rows skipped) because the `normalizeRow` function doesn't handle the user's exact column headers robustly. Key issues:
 
-1. **Remove `min_quantity`** — if quantity is 0, show "Not Available" and disable selection in demand flow
-2. **Magazinier can add multiple items to a supply list** — add a "cart" pattern to AddStockPage
-3. **Add `admin` role** — can do everything (add/remove stock directly, approve/reject, manage users)
-4. **Stock Manager cannot add stock** — can only validate/reject demand and supply lists
+1. **`Length (mm)` with trailing space** — Excel headers often have invisible trailing/leading spaces that cause exact-match lookup to fail
+2. **Quantity defaulting to 1** — if quantity value is `0` (falsy), it incorrectly defaults to `1`
+3. **No `Section` header support for sectionSize** — while `row.Section` works, trimmed/whitespace variants don't
 
-## Technical Details
+## Solution
+Rewrite `normalizeRow` to use a **case-insensitive, whitespace-trimmed key lookup** instead of hardcoded property access. This makes the import resilient to any header formatting variations.
 
-### 1. Remove min_quantity, handle zero-stock display
+## Changes
 
-**InventoryPage.tsx**:
-- Remove the "Min Qty" column from the table
-- When `quantity === 0`: show "Not Available" badge, disable the request quantity input
-- Remove `min_quantity` references and low-stock alert logic
-- The `useStock` hook already filters `quantity > 0` — change to show ALL stock (including 0) so engineers can see what exists but mark 0-qty as unavailable
+### `src/components/ExcelImport.tsx`
+- Add a helper function that searches all keys in a row object using case-insensitive, trimmed matching against a list of possible header names
+- Use this helper for all four fields: Steel Type, Section, Length, Quantity
+- Fix quantity handling so explicit `0` is preserved (use `undefined` check instead of falsy check)
+- Add a debug toast showing which headers were detected if all rows are skipped, to help troubleshoot
 
-**AddChutePage.tsx**: Remove the min_quantity input field entirely.
-
-**DashboardPage.tsx**: Remove low-stock alert references tied to min_quantity.
-
-### 2. Magazinier multi-item supply list
-
-**AddChutePage.tsx**: Add a "cart" list where the magazinier can add multiple items before submitting one supply list:
-- After filling type/section/length/qty, click "Add to List" (instead of submitting immediately)
-- Items accumulate in a local array displayed below the form
-- A "Submit Supply List" button sends all items at once via `useCreateSupplyList`
-- Each item in the cart can be removed before submission
-- Confirmation dialog shows all items before final submission
-
-### 3. Add `admin` role
-
-**Database migration**:
-- Add `'admin'` to the `app_role` enum
-- Add RLS policies for admin on all tables (admin can do everything)
-- Update `has_role` function — or add separate admin policies that grant full access
-
-**types/index.ts**: Add `'admin'` to `AppRole`, add label to `ROLE_LABELS`.
-
-**AuthContext.tsx**: Update `hasRole` — admin implicitly has all roles.
-
-**All pages**: Where we check `isManager`, also check `isAdmin`. Simplest approach: make `hasRole` return `true` for any role if the user is admin.
-
-**AppLayout.tsx**: Admin sees all nav items.
-
-**AddChutePage.tsx**: Admin can add stock directly (like current stock_manager behavior).
-
-**InventoryPage.tsx**: Admin can request items and also directly manage stock.
-
-**RequestsPage.tsx**: Admin can approve/reject all lists.
-
-**SettingsPage.tsx**: Admin can manage users and see audit log. Admin can also delete stock items.
-
-### 4. Stock Manager cannot add stock directly
-
-**AppLayout.tsx**: Remove `stock_manager` from the `Add Stock` nav item roles. Only `admin` and `magazinier` see it.
-
-**AddChutePage.tsx**: Remove the `isManager` direct-add path. Stock managers who somehow reach the page get redirected or see a message. Only `admin` gets `doDirectAdd`, magazinier gets supply list flow.
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/types/index.ts` | Add `'admin'` to AppRole, ROLE_LABELS |
-| `src/contexts/AuthContext.tsx` | `hasRole` returns true for everything if admin |
-| `src/pages/InventoryPage.tsx` | Remove min_qty column, disable 0-qty items, show all stock |
-| `src/pages/AddChutePage.tsx` | Multi-item cart for magazinier, remove min_qty field, admin direct add, remove stock_manager direct add |
-| `src/components/AppLayout.tsx` | Update nav roles (admin everywhere, remove stock_manager from Add Stock) |
-| `src/pages/DashboardPage.tsx` | Remove min_quantity alerts |
-| `src/pages/SettingsPage.tsx` | Admin can manage users |
-| `src/pages/RequestsPage.tsx` | Admin can approve/reject |
-| `src/hooks/useStock.ts` | `useStock` returns all items (including qty=0) |
-| Migration SQL | Add admin to app_role enum, add admin RLS policies |
-
-## Database Migration
-
-```sql
--- Add admin role
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'admin';
-
--- Admin full access policies for all tables
-CREATE POLICY "Admin full access stock" ON public.stock FOR ALL TO authenticated
-USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
-
-CREATE POLICY "Admin full access demand_lists" ON public.demand_lists FOR ALL TO authenticated
-USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
-
-CREATE POLICY "Admin full access demand_list_items" ON public.demand_list_items FOR ALL TO authenticated
-USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
-
-CREATE POLICY "Admin full access supply_lists" ON public.supply_lists FOR ALL TO authenticated
-USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
-
-CREATE POLICY "Admin full access supply_list_items" ON public.supply_list_items FOR ALL TO authenticated
-USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
-
-CREATE POLICY "Admin full access audit_log" ON public.audit_log FOR ALL TO authenticated
-USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
-
-CREATE POLICY "Admin full access profiles" ON public.profiles FOR ALL TO authenticated
-USING (has_role('admin'::app_role)) WITH CHECK (has_role('admin'::app_role));
+## Technical Detail
+```typescript
+// Helper: find value by trying multiple header names with trim + case-insensitive match
+function findValue(row: Record<string, any>, candidates: string[]): any {
+  const keys = Object.keys(row);
+  for (const candidate of candidates) {
+    const found = keys.find(k => k.trim().toLowerCase() === candidate.toLowerCase());
+    if (found !== undefined && row[found] !== undefined) return row[found];
+  }
+  return undefined;
+}
 ```
+
+This single change makes the import work with any reasonable header naming convention.
 
