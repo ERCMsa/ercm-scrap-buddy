@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS on_demand_approval ON public.demand_lists;
