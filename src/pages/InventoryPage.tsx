@@ -39,6 +39,7 @@ export default function InventoryPage() {
   const [demandItems, setDemandItems] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [observation, setObservation] = useState('');
 
   const filtered = useMemo(() => {
     return stock.filter(s => {
