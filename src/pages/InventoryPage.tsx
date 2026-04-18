@@ -80,6 +80,7 @@ export default function InventoryPage() {
     try {
       await createDemand.mutateAsync({
         items: selectedItems.map(([stock_id, requested_quantity]) => ({ stock_id, requested_quantity })),
+        notes: observation.trim() || undefined,
       });
       addNotification({
         type: 'demand_submitted',
@@ -89,6 +90,7 @@ export default function InventoryPage() {
       });
       toast.success('Demand list submitted');
       setDemandItems({});
+      setObservation('');
       setConfirmOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit');
