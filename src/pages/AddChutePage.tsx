@@ -229,6 +229,16 @@ export default function AddStockPage() {
               </div>
             ))}
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="supply-observation">Observation (optional)</Label>
+            <Textarea
+              id="supply-observation"
+              value={observation}
+              onChange={e => setObservation(e.target.value)}
+              placeholder="Add a note for the Stock Manager..."
+              rows={3}
+            />
+          </div>
           <Button onClick={() => setConfirmOpen(true)} className="btn-industrial red-gradient gap-2" disabled={pending}>
             <Send className="h-5 w-5" />
             Submit Supply List ({cart.length} items)
