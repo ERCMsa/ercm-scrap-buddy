@@ -1,0 +1,1 @@
+ALTER TABLE public.stock DROP COLUMN IF EXISTS min_quantity;
