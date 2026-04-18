@@ -109,7 +109,10 @@ export default function AddStockPage() {
         });
         items.push({ stock_id: stockId, supplied_quantity: parseInt(item.quantity) });
       }
-      const notes = cart.map(i => `${i.steelType} ${i.sectionSize} - ${i.length}mm ×${i.quantity}`).join(', ');
+      const itemsSummary = cart.map(i => `${i.steelType} ${i.sectionSize} - ${i.length}mm ×${i.quantity}`).join(', ');
+      const notes = observation.trim()
+        ? `Observation: ${observation.trim()}\nItems: ${itemsSummary}`
+        : itemsSummary;
       await createSupplyList.mutateAsync({ items, notes });
       addNotification({
         type: 'supply_submitted',
@@ -119,6 +122,7 @@ export default function AddStockPage() {
       });
       toast.success('Supply list submitted for approval');
       setCart([]);
+      setObservation('');
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit supply list');
     } finally {
