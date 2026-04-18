@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { PlusCircle, Plus, Trash2, Send } from 'lucide-react';
 import type { SteelType } from '@/types';
@@ -37,6 +38,7 @@ export default function AddStockPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [observation, setObservation] = useState('');
 
   const isAdmin = profile?.role === 'admin';
   const isMagazinier = profile?.role === 'magazinier';
@@ -107,7 +109,10 @@ export default function AddStockPage() {
         });
         items.push({ stock_id: stockId, supplied_quantity: parseInt(item.quantity) });
       }
-      const notes = cart.map(i => `${i.steelType} ${i.sectionSize} - ${i.length}mm ×${i.quantity}`).join(', ');
+      const itemsSummary = cart.map(i => `${i.steelType} ${i.sectionSize} - ${i.length}mm ×${i.quantity}`).join(', ');
+      const notes = observation.trim()
+        ? `Observation: ${observation.trim()}\nItems: ${itemsSummary}`
+        : itemsSummary;
       await createSupplyList.mutateAsync({ items, notes });
       addNotification({
         type: 'supply_submitted',
@@ -117,6 +122,7 @@ export default function AddStockPage() {
       });
       toast.success('Supply list submitted for approval');
       setCart([]);
+      setObservation('');
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit supply list');
     } finally {
@@ -222,6 +228,16 @@ export default function AddStockPage() {
                 </Button>
               </div>
             ))}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="supply-observation">Observation (optional)</Label>
+            <Textarea
+              id="supply-observation"
+              value={observation}
+              onChange={e => setObservation(e.target.value)}
+              placeholder="Add a note for the Stock Manager..."
+              rows={3}
+            />
           </div>
           <Button onClick={() => setConfirmOpen(true)} className="btn-industrial red-gradient gap-2" disabled={pending}>
             <Send className="h-5 w-5" />

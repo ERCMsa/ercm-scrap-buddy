@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Search, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -37,6 +39,7 @@ export default function InventoryPage() {
   const [demandItems, setDemandItems] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [observation, setObservation] = useState('');
 
   const filtered = useMemo(() => {
     return stock.filter(s => {
@@ -77,6 +80,7 @@ export default function InventoryPage() {
     try {
       await createDemand.mutateAsync({
         items: selectedItems.map(([stock_id, requested_quantity]) => ({ stock_id, requested_quantity })),
+        notes: observation.trim() || undefined,
       });
       addNotification({
         type: 'demand_submitted',
@@ -86,6 +90,7 @@ export default function InventoryPage() {
       });
       toast.success('Demand list submitted');
       setDemandItems({});
+      setObservation('');
       setConfirmOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit');
@@ -193,6 +198,16 @@ export default function InventoryPage() {
               You are about to request {selectedItems.length} items. This will be sent to the Stock Manager for approval.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="demand-observation">Observation (optional)</Label>
+            <Textarea
+              id="demand-observation"
+              value={observation}
+              onChange={e => setObservation(e.target.value)}
+              placeholder="Add a note for the Stock Manager..."
+              rows={3}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSubmitDemand} className="red-gradient">Confirm</AlertDialogAction>
