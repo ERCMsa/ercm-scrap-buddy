@@ -198,6 +198,16 @@ export default function InventoryPage() {
               You are about to request {selectedItems.length} items. This will be sent to the Stock Manager for approval.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="demand-observation">Observation (optional)</Label>
+            <Textarea
+              id="demand-observation"
+              value={observation}
+              onChange={e => setObservation(e.target.value)}
+              placeholder="Add a note for the Stock Manager..."
+              rows={3}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSubmitDemand} className="red-gradient">Confirm</AlertDialogAction>
