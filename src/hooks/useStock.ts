@@ -36,7 +36,7 @@ export function useAllStock() {
 export function useAddStock() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (item: { item_type: string; item_name: string; length: number | null; quantity: number; min_quantity?: number }) => {
+    mutationFn: async (item: { item_type: string; item_name: string; length: number | null; quantity: number }) => {
       let query = supabase.from('stock').select('*').eq('item_type', item.item_type).eq('item_name', item.item_name);
       if (item.length !== null) {
         query = query.eq('length', item.length);
@@ -60,7 +60,6 @@ export function useAddStock() {
             item_name: item.item_name,
             length: item.length,
             quantity: item.quantity,
-            min_quantity: item.min_quantity ?? 0,
           })
           .select('id')
           .single();
