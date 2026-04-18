@@ -38,6 +38,7 @@ export default function AddStockPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [observation, setObservation] = useState('');
 
   const isAdmin = profile?.role === 'admin';
   const isMagazinier = profile?.role === 'magazinier';
