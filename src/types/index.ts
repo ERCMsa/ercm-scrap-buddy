@@ -25,7 +25,6 @@ export interface StockItem {
   width: number | null;
   thickness: number | null;
   quantity: number;
-  min_quantity: number;
   created_at: string;
   updated_at: string;
 }

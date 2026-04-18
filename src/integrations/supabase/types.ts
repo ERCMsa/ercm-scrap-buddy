@@ -141,7 +141,6 @@ export type Database = {
           item_name: string
           item_type: string
           length: number | null
-          min_quantity: number
           quantity: number
           thickness: number | null
           updated_at: string
@@ -153,7 +152,6 @@ export type Database = {
           item_name: string
           item_type?: string
           length?: number | null
-          min_quantity?: number
           quantity?: number
           thickness?: number | null
           updated_at?: string
@@ -165,7 +163,6 @@ export type Database = {
           item_name?: string
           item_type?: string
           length?: number | null
-          min_quantity?: number
           quantity?: number
           thickness?: number | null
           updated_at?: string
